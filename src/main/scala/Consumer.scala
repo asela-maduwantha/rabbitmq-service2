@@ -17,20 +17,14 @@ object Consumer {
 
     val deliverCallback: DeliverCallback = (_, delivery) => {
       val message = new String(delivery.getBody, "UTF-8")
-      println(s"[o] New Message")
-      println(message)
-      println("__________________________________")
-
-      // Manually acknowledge the message
+      println(s"[x] New Message: "+ message)
       channel.basicAck(delivery.getEnvelope.getDeliveryTag, false)
     }
 
     val cancelCallback: CancelCallback = _ => println("Consumer cancelled")
 
-    // Set autoAck to false for manual acknowledgment
     channel.basicConsume(QUEUE_NAME, false, deliverCallback, cancelCallback)
 
-    // Ensure consumer is set up and ready to receive messages
     println("Waiting for messages. To exit press CTRL+C")
     while (true) {
       Thread.sleep(1000)
