@@ -1,4 +1,5 @@
-import com.rabbitmq.client.{ConnectionFactory, DeliverCallback, CancelCallback}
+import com.rabbitmq.client.{CancelCallback, ConnectionFactory, DeliverCallback}
+import scala.util.{Failure, Success, Try, Using}
 
 object Consumer {
   private val QUEUE_NAME = "queue"
@@ -7,27 +8,47 @@ object Consumer {
     val factory = new ConnectionFactory()
     factory.setHost("localhost")
     factory.setPort(5672)
-    factory.setUsername("admin")
-    factory.setPassword("Dilshan@123")
+    factory.setUsername("guest")
+    factory.setPassword("guest")
 
-    val connection = factory.newConnection()
-    val channel = connection.createChannel()
+    Try(factory.newConnection()) match {
+      case Success(connection) =>
+        Using(connection.createChannel()) { channel =>
+          channel.queueDeclare(QUEUE_NAME, false, false, false, null)
 
-    channel.queueDeclare(QUEUE_NAME, false, false, false, null)
+          val deliverCallback: DeliverCallback = (_, delivery) => {
+            Try(new String(delivery.getBody, "UTF-8")) match {
+              case Success(message) =>
+                println(s"[x] New Message: " + message)
+                Try(channel.basicAck(delivery.getEnvelope.getDeliveryTag, false)) match {
+                  case Success(_) =>
+                  case Failure(exception) => println(s"Failed to acknowledge message: ${exception.getMessage}")
+                }
 
-    val deliverCallback: DeliverCallback = (_, delivery) => {
-      val message = new String(delivery.getBody, "UTF-8")
-      println(s"[x] New Message: "+ message)
-      channel.basicAck(delivery.getEnvelope.getDeliveryTag, false)
-    }
+              case Failure(exception) => println(s"Failed to process message: ${exception.getMessage}")
+            }
+          }
 
-    val cancelCallback: CancelCallback = _ => println("Consumer cancelled")
+          val cancelCallback: CancelCallback = _ => println("Consumer cancelled")
 
-    channel.basicConsume(QUEUE_NAME, false, deliverCallback, cancelCallback)
+          Try(channel.basicConsume(QUEUE_NAME, false, deliverCallback, cancelCallback)) match {
+            case Success(_) => println("Waiting for messages. To exit press CTRL+C")
+            case Failure(exception) => println(s"Failed to start consuming messages: ${exception.getMessage}")
+          }
 
-    println("Waiting for messages. To exit press CTRL+C")
-    while (true) {
-      Thread.sleep(1000)
+          println("Press [CTRL+C] to exit.")
+          sys.addShutdownHook {
+            connection.close()
+            println("Connection closed")
+          }
+          Thread.sleep(Long.MaxValue)
+        } match {
+          case Success(_) =>
+          case Failure(exception) => println(s"Failed to create or use channel: ${exception.getMessage}")
+        }
+
+      case Failure(exception) =>
+        println(s"Failed to establish connection: ${exception.getMessage}")
     }
   }
 }
