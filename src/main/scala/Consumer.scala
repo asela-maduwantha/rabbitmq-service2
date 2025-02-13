@@ -13,7 +13,7 @@ object Consumer {
 
     Try(factory.newConnection()) match {
       case Success(connection) =>
-        Using(connection.createChannel()) { channel =>
+        val channel = connection.createChannel()
           channel.queueDeclare(QUEUE_NAME, false, false, false, null)
 
           val deliverCallback: DeliverCallback = (_, delivery) => {
@@ -41,12 +41,7 @@ object Consumer {
             connection.close()
             println("Connection closed")
           }
-          Thread.sleep(Long.MaxValue)
-        } match {
-          case Success(_) =>
-          case Failure(exception) => println(s"Failed to create or use channel: ${exception.getMessage}")
-        }
-
+        Thread.sleep(Long.MaxValue)
       case Failure(exception) =>
         println(s"Failed to establish connection: ${exception.getMessage}")
     }
